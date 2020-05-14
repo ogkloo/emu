@@ -4,26 +4,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <sys/stat.h>
-
-enum instructions {
-  ADD,
-  AND,
-  CMP,
-  HALT,
-  IN,
-  JEQ,
-  JG,
-  JL,
-  JMP,
-  LOAD,
-  MEMSIZE,
-  NOT,
-  OR,
-  OUT,
-  STORE,
-  SUB,
-  XOR,
-};
+#include "instr.h"
 
 struct memory {
   uint16_t size;
