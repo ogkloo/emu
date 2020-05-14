@@ -2,6 +2,8 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <string.h>
+#include <sys/stat.h>
 
 enum instructions {
   ADD,
@@ -64,70 +66,78 @@ void memclear(struct memory *mem, uint16_t low_bound, uint16_t high_bound) {
 }
 
 void run(struct memory *mem, struct registers *reg) {
-  for(int i=reg->instruction_pointer; i < mem->size; i++) {
-    uint8_t instruction = mem->memory[i];
+  for(;reg->instruction_pointer< mem->size; reg->instruction_pointer++) {
+    uint8_t instruction = mem->memory[reg->instruction_pointer];
     uint8_t args;
-    if (i < mem->size)
-      args = mem->memory[i+1];
+    if (reg->instruction_pointer < mem->size)
+      args = mem->memory[reg->instruction_pointer+1];
     // If you run out of memory here god help you.
     switch(instruction) {
       case ADD:
         // Add the two registers specified in the next bit
         // If there are too few registers to accomodate it, crash.
         reg->general_registers[(args & 0xf0) >> 4] += reg->general_registers[(args & 0x0f)];
-        i++;
+        reg->instruction_pointer++;
         break;
       case AND:
         reg->general_registers[(args & 0xf0) >> 4] &= reg->general_registers[(args & 0x0f)];
-        i++;
+        reg->instruction_pointer++;
         break;
       case CMP:
       case HALT:
-        i = mem->size;
+        reg->instruction_pointer= mem->size;
         break;
       case IN:
       case JEQ:
       case JG:
       case JL:
       case JMP:
+        // JMP using register target
+        reg->instruction_pointer = reg->general_registers[args & 0x0f];
       case LOAD:
         // Takes the bottom 4 bits of the next byte to select a register
         // Then copies that to the byte specified after that
-         reg->general_registers[args & 0x0f] = mem->memory[mem->memory[i+2]];
+        reg->general_registers[args & 0x0f] = mem->memory[mem->memory[reg->instruction_pointer+2]];
         break;
       case MEMSIZE:
         // Since the address space is 16 bits, this alwaays returns into and r1
         reg->general_registers[0] = mem->size & 0x0f;
+        reg->general_registers[1] = mem->size & 0xf0;
       case NOT:
+        reg->general_registers[args & 0x0f] = ~reg->general_registers[args & 0x0f];
+        reg->instruction_pointer++;
+        break;
       case OR:
         reg->general_registers[(args & 0xf0) >> 4] |= reg->general_registers[(args & 0x0f)];
-        i += 2;
+        reg->instruction_pointer += 2;
         break;
       case OUT:
       case STORE:
         // Takes the bottom 4 bits of the next byte to select a register
         // Then copies that to the byte specified after that
-        mem->memory[mem->memory[i+2]] = reg->general_registers[args & 0x0f];
-        i += 2;
+        mem->memory[mem->memory[reg->instruction_pointer+2]] = reg->general_registers[args & 0x0f];
+        reg->instruction_pointer+= 2;
         break;
       case SUB:
         reg->general_registers[(args & 0xf0) >> 4] -= reg->general_registers[(args & 0x0f)];
-        i++;
+        reg->instruction_pointer++;
         break;
       case XOR:
         reg->general_registers[(args & 0xf0) >> 4] ^= reg->general_registers[(args & 0x0f)];
-        i++;
+        reg->instruction_pointer++;
         break;
     }
   }
 }
 
 int main(int argc, char **argv) {
-  int size = 8;
+  int size = 4096;
   // Maximum number of registers without pain
   int num_regs = 16;
   int option;
-  while((option = getopt(argc, argv, "s:r:")) != -1) {
+  uint8_t *program = NULL;
+  int fsz;
+  while((option = getopt(argc, argv, "s:r:f:")) != -1) {
     switch(option) {
       case 's':
         size = atoi(optarg);
@@ -139,22 +149,26 @@ int main(int argc, char **argv) {
         }
         num_regs = atoi(optarg);
         break;
+      case 'f':
+        program = (uint8_t *) malloc(size);
+        FILE *fp = fopen(optarg, "r");
+        struct stat st;
+        stat(optarg, &st);
+        fsz = st.st_size;
+        fread(program, 1, fsz, fp);
     }
   }
 
   struct memory main_memory;
   initmem(&main_memory, size);
   memclear(&main_memory, 0, main_memory.size);
+  if (program) {
+    memcpy(main_memory.memory, program, fsz);
+  }
 
   struct registers regs;
   initregs(&regs, num_regs);
-  regs.general_registers[1] = 10;
-  main_memory.memory[0] = ADD;
-  main_memory.memory[1] = 0x01;
-  main_memory.memory[2] = STORE;
-  main_memory.memory[3] = 0x01;
-  main_memory.memory[4] = 0xa;
-  main_memory.memory[5] = HALT;
+
   dumpmem(&main_memory);
 
   run(&main_memory, &regs);
@@ -163,6 +177,7 @@ int main(int argc, char **argv) {
 
   destroymem(&main_memory);
   free(regs.general_registers);
+  free(program);
 
   return 0;
 }
