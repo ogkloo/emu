@@ -24,7 +24,7 @@ enum instructions {
 };
 
 struct memory {
-  unsigned int size;
+  uint16_t size;
   uint8_t *memory;
 };
 
@@ -42,7 +42,7 @@ void initregs(struct registers *regs, int size) {
   regs->flags = 0;
 }
 
-void initmem(struct memory *mem, unsigned int size) {
+void initmem(struct memory *mem, uint16_t size) {
   mem->memory = (uint8_t*) malloc(size);
   mem->size = size;
 }
@@ -58,17 +58,9 @@ void dumpmem(struct memory *mem) {
   printf("\n");
 }
 
-void memclear(struct memory *mem, unsigned int low_bound, unsigned int high_bound) {
+void memclear(struct memory *mem, uint16_t low_bound, uint16_t high_bound) {
   for(int i=low_bound; i < high_bound; i++) 
     mem->memory[i] = 0;
-}
-
-void load(struct memory *mem, unsigned int offset, uint8_t *reg) {
-  *reg = mem->memory[offset];
-}
-
-void store(struct memory *mem, unsigned int offset, uint8_t i) {
-  mem->memory[offset] = i;
 }
 
 void run(struct memory *mem, struct registers *reg) {
@@ -79,9 +71,9 @@ void run(struct memory *mem, struct registers *reg) {
       args = mem->memory[i+1];
     // If you run out of memory here god help you.
     switch(instruction) {
-      // Add the two registers specified in the next bit
-      // If there are too few registers to accomodate it, crash.
       case ADD:
+        // Add the two registers specified in the next bit
+        // If there are too few registers to accomodate it, crash.
         reg->general_registers[(args & 0xf0) >> 4] += reg->general_registers[(args & 0x0f)];
         i++;
         break;
@@ -104,6 +96,8 @@ void run(struct memory *mem, struct registers *reg) {
          reg->general_registers[args & 0x0f] = mem->memory[mem->memory[i+2]];
         break;
       case MEMSIZE:
+        // Since the address space is 16 bits, this alwaays returns into and r1
+        reg->general_registers[0] = mem->size & 0x0f;
       case NOT:
       case OR:
         reg->general_registers[(args & 0xf0) >> 4] |= reg->general_registers[(args & 0x0f)];
