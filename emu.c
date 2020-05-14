@@ -77,6 +77,7 @@ void run(struct memory *mem, struct registers *reg) {
     uint8_t args;
     if (i < mem->size)
       args = mem->memory[i+1];
+    // If you run out of memory here god help you.
     switch(instruction) {
       // Add the two registers specified in the next bit
       // If there are too few registers to accomodate it, crash.
@@ -85,6 +86,9 @@ void run(struct memory *mem, struct registers *reg) {
         i++;
         break;
       case AND:
+        reg->general_registers[(args & 0xf0) >> 4] &= reg->general_registers[(args & 0x0f)];
+        i++;
+        break;
       case CMP:
       case HALT:
         i = mem->size;
@@ -95,18 +99,30 @@ void run(struct memory *mem, struct registers *reg) {
       case JL:
       case JMP:
       case LOAD:
+        // Takes the bottom 4 bits of the next byte to select a register
+        // Then copies that to the byte specified after that
+         reg->general_registers[args & 0x0f] = mem->memory[mem->memory[i+2]];
+        break;
       case MEMSIZE:
       case NOT:
       case OR:
+        reg->general_registers[(args & 0xf0) >> 4] |= reg->general_registers[(args & 0x0f)];
+        i += 2;
+        break;
       case OUT:
       case STORE:
         // Takes the bottom 4 bits of the next byte to select a register
         // Then copies that to the byte specified after that
-        // If you run out of memory here god help you.
         mem->memory[mem->memory[i+2]] = reg->general_registers[args & 0x0f];
+        i += 2;
         break;
       case SUB:
+        reg->general_registers[(args & 0xf0) >> 4] -= reg->general_registers[(args & 0x0f)];
+        i++;
+        break;
       case XOR:
+        reg->general_registers[(args & 0xf0) >> 4] ^= reg->general_registers[(args & 0x0f)];
+        i++;
         break;
     }
   }
